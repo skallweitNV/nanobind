@@ -28,6 +28,7 @@ PyObject *enum_create(enum_init_data *ed) noexcept {
     handle scope(ed->scope);
 
     bool is_arithmetic = ed->flags & (uint32_t) type_flags::is_arithmetic;
+    bool is_flag = ed->flags & (uint32_t) type_flags::is_flag;
 
     str name(ed->name), qualname = name;
     object modname;
@@ -44,6 +45,8 @@ PyObject *enum_create(enum_init_data *ed) noexcept {
     }
 
     const char *factory_name = is_arithmetic ? "IntEnum" : "Enum";
+    if (is_flag)
+        factory_name = is_arithmetic ? "IntFlag" : "Flag";
 
     object enum_mod = module_::import_("enum"),
            factory = enum_mod.attr(factory_name),
@@ -55,7 +58,7 @@ PyObject *enum_create(enum_init_data *ed) noexcept {
     result.attr("__doc__") = ed->docstr ? str(ed->docstr) : none();
 
     if (is_arithmetic)
-        result.attr("__str__") = enum_mod.attr("Enum").attr("__str__");
+        result.attr("__str__") = enum_mod.attr(factory_name).attr("__str__");
 
     result.attr("__repr__") = result.attr("__str__");
 
@@ -150,6 +153,8 @@ bool enum_from_python(const std::type_info *tp, PyObject *o, int64_t *out, uint8
     if (!t)
         return false;
 
+    bool is_flag = t->flags & (uint32_t) type_flags::is_flag;
+
     enum_map *rev = (enum_map *) t->enum_tbl.rev;
     enum_map::iterator it = rev->find((int64_t) (uintptr_t) o);
 
@@ -168,7 +173,7 @@ bool enum_from_python(const std::type_info *tp, PyObject *o, int64_t *out, uint8
                 return false;
             }
             enum_map::iterator it2 = fwd->find((int64_t) value);
-            if (it2 != fwd->end()) {
+            if (is_flag || it2 != fwd->end()) {
                 *out = (int64_t) value;
                 return true;
             }
@@ -179,7 +184,7 @@ bool enum_from_python(const std::type_info *tp, PyObject *o, int64_t *out, uint8
                 return false;
             }
             enum_map::iterator it2 = fwd->find((int64_t) value);
-            if (it2 != fwd->end()) {
+            if (is_flag || it2 != fwd->end()) {
                 *out = (int64_t) value;
                 return true;
             }
