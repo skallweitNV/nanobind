@@ -628,6 +628,9 @@ def test31_view():
     x2 = x1 * (-1+2j)
     t.fill_view_5(x1)
     assert np.allclose(x1, x2)
+    x2 = -x2;
+    t.fill_view_6(x1)
+    assert np.allclose(x1, x2)
 
 @needs_numpy
 def test32_half():
@@ -683,7 +686,10 @@ def test37_noninteger_stride():
     t.pass_float32(s)
     assert t.get_stride(s, 0) == 6;
     assert t.get_stride(s, 1) == 1;
-    v = s.view(np.complex64)
+    try:
+        v = s.view(np.complex64)
+    except:
+        pytest.skip('your version of numpy is too old')
     t.pass_complex64(v)
     assert t.get_stride(v, 0) == 3;
     assert t.get_stride(v, 1) == 1;
@@ -701,9 +707,88 @@ def test37_noninteger_stride():
         t.get_stride(v, 0);
     assert 'incompatible function arguments' in str(excinfo.value)
 
+@needs_numpy
+def test38_const_qualifiers_numpy():
+    a = np.array([0, 0, 0, 3.14159, 0], dtype=np.float64)
+    assert t.check_rw_by_value(a);
+    assert a[1] == 1.414214;
+    assert t.check_rw_by_value_float64(a);
+    assert a[2] == 2.718282;
+    assert a[4] == 16.0;
+    assert t.check_ro_by_value_ro(a);
+    assert t.check_ro_by_value_const_float64(a);
+    a.setflags(write=False)
+    assert t.check_ro_by_value_ro(a);
+    assert t.check_ro_by_value_const_float64(a);
+    assert a[0] == 0.0;
+    assert a[3] == 3.14159;
+
+    a = np.array([0, 0, 0, 3.14159, 0], dtype=np.float64)
+    assert t.check_rw_by_const_ref(a);
+    assert a[1] == 1.414214;
+    assert t.check_rw_by_const_ref_float64(a);
+    assert a[2] == 2.718282;
+    assert a[4] == 16.0;
+    assert t.check_ro_by_const_ref_ro(a);
+    assert t.check_ro_by_const_ref_const_float64(a);
+    a.setflags(write=False)
+    assert t.check_ro_by_const_ref_ro(a);
+    assert t.check_ro_by_const_ref_const_float64(a);
+    assert a[0] == 0.0;
+    assert a[3] == 3.14159;
+
+    a = np.array([0, 0, 0, 3.14159, 0], dtype=np.float64)
+    assert t.check_rw_by_rvalue_ref(a);
+    assert a[1] == 1.414214;
+    assert t.check_rw_by_rvalue_ref_float64(a);
+    assert a[2] == 2.718282;
+    assert a[4] == 16.0;
+    assert t.check_ro_by_rvalue_ref_ro(a);
+    assert t.check_ro_by_rvalue_ref_const_float64(a);
+    a.setflags(write=False)
+    assert t.check_ro_by_rvalue_ref_ro(a);
+    assert t.check_ro_by_rvalue_ref_const_float64(a);
+    assert a[0] == 0.0;
+    assert a[3] == 3.14159;
+
+@needs_torch
+def test39_const_qualifiers_pytorch():
+    a = torch.tensor([0, 0, 0, 3.14159, 0], dtype=torch.float64)
+    assert t.check_rw_by_value(a);
+    assert a[1] == 1.414214;
+    assert t.check_rw_by_value_float64(a);
+    assert a[2] == 2.718282;
+    assert a[4] == 16.0;
+    assert t.check_ro_by_value_ro(a);
+    assert t.check_ro_by_value_const_float64(a);
+    assert a[0] == 0.0;
+    assert a[3] == 3.14159;
+
+    a = torch.tensor([0, 0, 0, 3.14159, 0], dtype=torch.float64)
+    assert t.check_rw_by_const_ref(a);
+    assert a[1] == 1.414214;
+    assert t.check_rw_by_const_ref_float64(a);
+    assert a[2] == 2.718282;
+    assert a[4] == 16.0;
+    assert t.check_ro_by_const_ref_ro(a);
+    assert t.check_ro_by_const_ref_const_float64(a);
+    assert a[0] == 0.0;
+    assert a[3] == 3.14159;
+
+    a = torch.tensor([0, 0, 0, 3.14159, 0], dtype=torch.float64)
+    assert t.check_rw_by_rvalue_ref(a);
+    assert a[1] == 1.414214;
+    assert t.check_rw_by_rvalue_ref_float64(a);
+    assert a[2] == 2.718282;
+    assert a[4] == 16.0;
+    assert t.check_ro_by_rvalue_ref_ro(a);
+    assert t.check_ro_by_rvalue_ref_const_float64(a);
+    assert a[0] == 0.0;
+    assert a[3] == 3.14159;
+
 @needs_cupy
 @pytest.mark.filterwarnings
-def test38_constrain_order_cupy():
+def test40_constrain_order_cupy():
     try:
         c = cp.zeros((3, 5))
         c.__dlpack__()
@@ -719,7 +804,7 @@ def test38_constrain_order_cupy():
 
 
 @needs_cupy
-def test39_implicit_conversion_cupy():
+def test41_implicit_conversion_cupy():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:

@@ -33,14 +33,14 @@ Binding functions that take arrays as input
 -------------------------------------------
 
 A function that accepts a :cpp:class:`nb::ndarray\<\> <ndarray>`-typed parameter
-(i.e., *without* template parameters) can be called with *any* array
+(i.e., *without* template parameters) can be called with *any* writable array
 from any framework regardless of the device on which it is stored. The
 following example binding declaration uses this functionality to inspect the
 properties of an arbitrary input array:
 
 .. code-block:: cpp
 
-   m.def("inspect", [](nb::ndarray<> a) {
+   m.def("inspect", [](const nb::ndarray<>& a) {
        printf("Array data pointer : %p\n", a.data());
        printf("Array dimension : %zu\n", a.ndim());
        for (size_t i = 0; i < a.ndim(); ++i) {
@@ -398,8 +398,8 @@ of shape/stride arrays for brace-initialization and infers ``ndim``:
 Data ownership
 --------------
 
-The ``owner`` argument of the :cpp:class:`ndarray`` constructor must specify a
-Python object that keeps the underlying memory region alive.
+The ``owner`` argument of the :cpp:class:`nb::ndarray <ndarray>` constructor
+must specify a Python object that keeps the underlying memory region alive.
 
 A common use case entails returning an nd-array view of an existing C++
 container. In this case, you could construct a :cpp:class:`nb::capsule

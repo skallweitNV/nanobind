@@ -108,8 +108,9 @@ using precise_cast_t =
 /// where the template argument T is the type you plan to extract.
 template <typename T>
 NB_INLINE uint8_t flags_for_local_caster(uint8_t flags) noexcept {
+    using Caster = make_caster<T>;
     constexpr bool is_ref = std::is_pointer_v<T> || std::is_reference_v<T>;
-    if constexpr (is_base_caster_v<make_caster<T>>) {
+    if constexpr (is_base_caster_v<Caster>) {
         if constexpr (is_ref) {
             /* References/pointers to a type produced by implicit conversions
                refer to storage owned by the cleanup_list. In a nb::cast() call,
@@ -123,7 +124,8 @@ NB_INLINE uint8_t flags_for_local_caster(uint8_t flags) noexcept {
            into storage owned by the caster, which won't live long enough.
            Exception: the 'char' caster produces a result that points to
            storage owned by the incoming Python 'str' object, so it's OK. */
-        static_assert(!is_ref || std::is_same_v<T, const char*>,
+        static_assert(!is_ref || std::is_same_v<T, const char*> ||
+                      (std::is_pointer_v<T> && std::is_constructible_v<T*, Caster>),
                       "nanobind generally cannot produce objects that "
                       "contain interior pointers T* (or references T&) if "
                       "the pointee T is not handled by nanobind's regular "
@@ -236,19 +238,21 @@ template <> struct type_caster<void> {
     }
 };
 
-template <> struct type_caster<std::nullptr_t> {
+template <typename T> struct none_caster {
     bool from_python(handle src, uint8_t, cleanup_list *) noexcept {
         if (src.is_none())
             return true;
         return false;
     }
 
-    static handle from_cpp(std::nullptr_t, rv_policy, cleanup_list *) noexcept {
+    static handle from_cpp(T, rv_policy, cleanup_list *) noexcept {
         return none().release();
     }
 
-    NB_TYPE_CASTER(std::nullptr_t, const_name("None"))
+    NB_TYPE_CASTER(T, const_name("None"))
 };
+
+template <> struct type_caster<std::nullptr_t> : none_caster<std::nullptr_t> { };
 
 template <> struct type_caster<bool> {
     bool from_python(handle src, uint8_t, cleanup_list *) noexcept {
@@ -273,12 +277,13 @@ template <> struct type_caster<bool> {
 template <> struct type_caster<char> {
     using Value = const char *;
     Value value;
+    Py_ssize_t size;
     static constexpr auto Name = const_name("str");
     template <typename T_>
     using Cast = std::conditional_t<is_pointer_v<T_>, const char *, char>;
 
     bool from_python(handle src, uint8_t, cleanup_list *) noexcept {
-        value = PyUnicode_AsUTF8AndSize(src.ptr(), nullptr);
+        value = PyUnicode_AsUTF8AndSize(src.ptr(), &size);
         if (!value) {
             PyErr_Clear();
             return false;
@@ -302,7 +307,7 @@ template <> struct type_caster<char> {
 
     template <typename T_>
     NB_INLINE bool can_cast() const noexcept {
-        return std::is_pointer_v<T_> || (value && value[0] && value[1] == '\0');
+        return std::is_pointer_v<T_> || (value && size == 1);
     }
 
     explicit operator const char *() { return value; }
@@ -597,6 +602,20 @@ template <typename T>
 object cast(T &&value, rv_policy policy = rv_policy::automatic_reference) {
     handle h = detail::make_caster<T>::from_cpp((detail::forward_t<T>) value,
                                                 policy, nullptr);
+    if (!h.is_valid())
+        detail::raise_cast_error();
+
+    return steal(h);
+}
+
+template <typename T>
+object cast(T &&value, rv_policy policy, handle parent) {
+    detail::cleanup_list cleanup(parent.ptr());
+    handle h = detail::make_caster<T>::from_cpp((detail::forward_t<T>) value,
+                                                policy, &cleanup);
+
+    cleanup.release();
+
     if (!h.is_valid())
         detail::raise_cast_error();
 

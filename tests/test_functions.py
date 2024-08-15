@@ -388,8 +388,11 @@ def test35_return_capture():
 
 def test36_test_char():
     assert t.test_cast_char("c") == "c"
+    assert t.test_cast_char("\x00") == "\x00"
     with pytest.raises(TypeError):
         assert t.test_cast_char("abc")
+    with pytest.raises(TypeError):
+        assert t.test_cast_char("")
     with pytest.raises(RuntimeError):
         assert t.test_cast_char(123)
 
@@ -595,3 +598,36 @@ def test43_wrappers_set():
 def test44_hash():
     value = (1, 2, 3)
     assert t.hash_it(value) == hash(value);
+
+
+def test45_new():
+    assert t.test_bytearray_new() == bytearray()
+    assert t.test_bytearray_new("\x00\x01\x02\x03", 4) == bytearray(
+        b"\x00\x01\x02\x03"
+    )
+    assert t.test_bytearray_new("", 0) == bytearray()
+
+
+def test46_copy():
+    o = bytearray(b"\x00\x01\x02\x03")
+    c = t.test_bytearray_copy(o)
+    assert c == o
+    o.clear()
+    assert c != o
+
+
+def test47_c_str():
+    o = bytearray(b"Hello, world!")
+    assert t.test_bytearray_c_str(o) == "Hello, world!"
+
+
+def test48_size():
+    o = bytearray(b"Hello, world!")
+    assert t.test_bytearray_size(o) == len(o)
+
+
+def test49_resize():
+    o = bytearray(b"\x00\x01\x02\x03")
+    assert len(o) == 4
+    t.test_bytearray_resize(o, 8)
+    assert len(o) == 8
